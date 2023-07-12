@@ -1,4 +1,12 @@
 # Base de ovtrack-custom
+# Posible problema: con custom-classes se actualizaba automáticamente los umbrales
+# del tracker a números mucho más bajos que los de la configuración, así que en la
+# inferencia sí que se detectaban objetos.
+# Es esto!!!!!! Con clases BDD y umbrales reducidos sí que se detectan cosas.
+
+# Pero por qué con clases LVIS nunca nada se detecta? El problema no son los embeddgins
+# precompilados detpro_prompt.pt, porque incluso cuando se crean de forma dinámica, no
+# se detecta nada.
 
 model = dict(
     type='OVTrack',
@@ -41,7 +49,8 @@ model = dict(
     roi_head=dict(
         type='OVTrackRoIHead',
         finetune_track=True,
-        custom_classes=True,
+        #custom_classes=True,
+        prompt_path='saved_models/pretrained_models/detpro_prompt.pt',
         bbox_roi_extractor=dict(
             type='SingleRoIExtractor',
             roi_layer=dict(type='RoIAlign', output_size=7, sampling_ratio=0),
@@ -52,6 +61,7 @@ model = dict(
             in_channels=256,
             fc_out_channels=1024,
             roi_feat_size=7,
+            #num_classes=8,
             num_classes=1203,
             bbox_coder=dict(
                 type='DeltaXYWHBBoxCoder',
@@ -61,6 +71,7 @@ model = dict(
             loss_cls=dict(
                 type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
             loss_bbox=dict(type='L1Loss', loss_weight=1.0),
+            # Esto hace cosas raras cuando es True
             ensemble=True,
             with_cls=False,
             norm_cfg=dict(type='SyncBN', requires_grad=True)),
@@ -138,13 +149,16 @@ model = dict(
                 neg_sampler=dict(type='RandomSampler')))
     ),
     tracker=dict(
+        # Mejores resultados: tener una confianza bastante alta para empezar a trackear un
+        # objeto por primera vez, pero tener un umbral de confianza más bajo para detección 
+        # de objetos para evitar perder ese objeto si baja momentaneamente su confianza.
         type='OVTracker',
-        init_score_thr=0.5,
-        obj_score_thr=0.05,
-        match_score_thr=0.4,
+        init_score_thr=0.6,
+        obj_score_thr=0.1,
+        match_score_thr=0.6,
         memo_frames=30,
         momentum_embed=0.8,
-        momentum_obj_score=0.5,
+        momentum_obj_score=0,
         match_metric='bisoftmax',
         match_with_cosine=True,
     ),
@@ -154,10 +168,9 @@ test_cfg = dict(
         max_per_img=1000,
         nms=dict(type='nms', iou_threshold=0.7),
         min_bbox_size=0),
-
     rcnn=dict(
-        score_thr=0.01,
-        nms=dict(type='nms', iou_threshold=0.5, class_agnostic=True, split_thr=1000000),
+        score_thr=0.1,
+        nms=dict(type='nms', iou_threshold=0.3, class_agnostic=True, split_thr=1000000),
         max_per_img=100)
 
 )
